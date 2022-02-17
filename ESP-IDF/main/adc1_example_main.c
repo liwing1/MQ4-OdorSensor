@@ -42,6 +42,8 @@ const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
 #define         GAS_SMOKE                    (2)
 #define         GAS_ALCOHOL                  (3)
 #define         GAS_METHANE                  (4)
+#define         GAS_TOLUENE                  (5)
+
  
 /****************************Globals**********************************************/
 float           LPGCurve[3]  =  {2.3,0.43,-0.32};   //two points are taken from the curve. 
@@ -64,16 +66,16 @@ float           MethaneCurve[3] ={2.3,0.26,-0.36};  //two points are taken from 
                                                     //with these two points, a line is formed which is "approximately equivalent" 
                                                     //to the original curve.
                                                     //data format:{ x, y, slope}; point1: (lg200, 0.26), point2: (lg10000,    -0.36)                                                     
+float           TolueneCurve[3] ={1.0,-0.1343,-0.41};
+                                                    //with these two points, a line is formed which is "approximately equivalent" 
+                                                    //to the original curve.
+                                                    //data format:{ x, y, slope}; point1: (lg10, -0.1343), point2: (lg1000,    -0.95) 
 float           Ro           =  10;                 //Ro is initialized to 10 kilo ohms
 
 static esp_adc_cal_characteristics_t *adc_chars;
-#if CONFIG_IDF_TARGET_ESP32
-static const adc_channel_t channel = ADC_CHANNEL_5;     //GPIO13 if ADC1, GPIO12 if ADC2
+static const adc_channel_t channel_mq4 = ADC_CHANNEL_5;     //GPIO13 if ADC1, GPIO12 if ADC2
+static const adc_channel_t channel_mq135 = ADC_CHANNEL_7;     //GPIO35 if ADC1, GPIO27 if ADC2
 static const adc_bits_width_t width = ADC_WIDTH_BIT_12;
-#elif CONFIG_IDF_TARGET_ESP32S2
-static const adc_channel_t channel = ADC_CHANNEL_5;     // GPIO13 if ADC1, GPIO12 if ADC2
-static const adc_bits_width_t width = ADC_WIDTH_BIT_13;
-#endif
 static const adc_atten_t atten = ADC_ATTEN_DB_11;
 static const adc_unit_t unit = ADC_UNIT_2;
 
@@ -83,10 +85,10 @@ static const char *TAG = "example";
 void adc_init(void);
 void spiffs_init(void);
 void pins_init(void);
-uint32_t analogRead(void);
-float MQCalibration(int mq_pin);
+uint32_t analogRead(const adc_channel_t);
+float MQCalibration(const adc_channel_t channel);
 float MQResistanceCalculation(uint32_t adc);
-float MQRead(void);
+float MQRead(const adc_channel_t);
 double MQGetGasPercentage(float rs_ro_ratio, int gas_id);
 double MQGetPercentage(float rs_ro_ratio, float *pcurve);
 void escreve_sensor_arquivo(char*);
@@ -134,23 +136,26 @@ static void print_char_val_type(esp_adc_cal_value_t val_type)
 
 void app_main(void)
 {
-    double alcohol, methane;
+    double toluene, methane;
     char buffer[512];
 
     pins_init();
     adc_init();
     spiffs_init();
 
-    float Ro = MQCalibration(MQ_PIN);
+    float Ro_mq4 = MQCalibration(channel_mq4);
+    float Ro_mq135 = MQCalibration(channel_mq135);
 
     printf("Ro = %f\r\n", Ro);
 
+    escreve_sensor_arquivo("MQ4(metano),MQ135(tolueno)");
+
     //Continuously sample ADC1
     while (1) {
-        alcohol = MQGetGasPercentage(MQRead()/Ro,GAS_ALCOHOL);
-        methane = MQGetGasPercentage(MQRead()/Ro,GAS_METHANE);
+        methane = MQGetGasPercentage(MQRead(channel_mq4)/Ro_mq4,GAS_METHANE);
+        toluene = MQGetGasPercentage(MQRead(channel_mq135)/Ro_mq135,GAS_TOLUENE);
 
-        sprintf(buffer, "Alcohol: %f\tMethane:%f\n", alcohol, methane);
+        sprintf(buffer, "%f,%f\r\n", methane, toluene);
         
         escreve_sensor_arquivo(buffer);
 
@@ -172,9 +177,10 @@ void adc_init(void)
     //Configure ADC
     if (unit == ADC_UNIT_1) {
         adc1_config_width(width);
-        adc1_config_channel_atten(channel, atten);
+        adc1_config_channel_atten(channel_mq4, atten);
+        adc1_config_channel_atten(channel_mq135, atten);
     } else {
-        adc2_config_channel_atten((adc2_channel_t)channel, atten);
+        adc2_config_channel_atten((adc2_channel_t)channel_mq4, atten);
     }
 
     //Characterize ADC
@@ -184,7 +190,7 @@ void adc_init(void)
 
 }
 
-uint32_t analogRead(void)
+uint32_t analogRead(const adc_channel_t channel)
 {
     uint32_t adc_reading = 0;
     //Multisampling
@@ -224,13 +230,13 @@ Remarks: This function assumes that the sensor is in clean air. It use
          and then divides it with RO_CLEAN_AIR_FACTOR. RO_CLEAN_AIR_FACTOR is about 
          10, which differs slightly between different sensors.
 **********************************************************************************/ 
-float MQCalibration(int mq_pin)
+float MQCalibration(const adc_channel_t channel)
 {
   int i;
   float val=0;
  
   for (i=0;i<CALIBARAION_SAMPLE_TIMES;i++) {            //take multiple samples
-    val += MQResistanceCalculation(analogRead());
+    val += MQResistanceCalculation(analogRead(channel));
     vTaskDelay(CALIBRATION_SAMPLE_INTERVAL/portTICK_RATE_MS);
   }
   val = val/CALIBARAION_SAMPLE_TIMES;                   //calculate the average value
@@ -250,13 +256,13 @@ Remarks: This function use MQResistanceCalculation to caculate the sensor resist
          gas. The sample times and the time interval between samples could be configured
          by changing the definition of the macros.
 **********************************************************************************/ 
-float MQRead(void)
+float MQRead(const adc_channel_t channel)
 {
   int i;
   float rs=0;
  
   for (i=0;i<READ_SAMPLE_TIMES;i++) {
-    rs += MQResistanceCalculation(analogRead());
+    rs += MQResistanceCalculation(analogRead(channel));
     vTaskDelay(READ_SAMPLE_INTERVAL/portTICK_PERIOD_MS);
   }
  
@@ -285,6 +291,8 @@ double MQGetGasPercentage(float rs_ro_ratio, int gas_id)
      return MQGetPercentage(rs_ro_ratio,AlcoholCurve);
   }else if( gas_id == GAS_METHANE ) {
      return MQGetPercentage(rs_ro_ratio,MethaneCurve);
+  }else if( gas_id == GAS_TOLUENE ) {
+     return MQGetPercentage(rs_ro_ratio,TolueneCurve);
   }
   return 0;
 }
@@ -357,16 +365,20 @@ void escreve_sensor_arquivo(char* buffer)
 void print_sensor_arquivo(void)
 {
     char buffer[512];
-    FILE* f = fopen("/spiffs/hello.txt", "a");
+    FILE* f = fopen("/spiffs/hello.txt", "r");
     if (f == NULL) {
-        ESP_LOGE(TAG, "Failed to open file for writing");
+        ESP_LOGE(TAG, "Failed to open file for reading");
         return;
     }
 
+    ESP_LOGW("PRINT", "IMPRIMINDO ARQUIVO");
     while(fgets(buffer, 512, f))
     {
         printf("%s", buffer);
+        
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
+    ESP_LOGW("PRINT", "TERMINOU DE IMPRIMIR ARQUIVO");
 }
 
 void pins_init(void)
