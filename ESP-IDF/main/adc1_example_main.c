@@ -37,12 +37,16 @@
 const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
  
 /*********************Application Related Macros*********************************/
-#define         GAS_LPG                      (0)
-#define         GAS_CO                       (1)
-#define         GAS_SMOKE                    (2)
-#define         GAS_ALCOHOL                  (3)
-#define         GAS_METHANE                  (4)
-#define         GAS_TOLUENE                  (5)
+enum{
+    GAS_LPG = 0,
+    GAS_CO,
+    GAS_SMOKE,
+    GAS_ALCOHOL,
+    GAS_METHANE,
+    GAS_TOLUENE,
+    GAS_TGS_METHANE,
+    GAS_TGS_HYDROGEN,
+};
 
  
 /****************************Globals**********************************************/
@@ -70,6 +74,8 @@ float           TolueneCurve[3] ={1.0,-0.1343,-0.41};
                                                     //with these two points, a line is formed which is "approximately equivalent" 
                                                     //to the original curve.
                                                     //data format:{ x, y, slope}; point1: (lg10, -0.1343), point2: (lg1000,    -0.95) 
+float           TGS_MethaneCurve[3] = {2.47,0.48,-0.43};     //point1: (lg300, lg3), point2: (lg10000,    lg0.65) 
+float           TGS_HydrogenCurve[3] = {2.47,0.61,-0.29};    //point1: (lg300, lg4.1), point2: (lg10000,    lg1.5) 
 float           Ro           =  10;                 //Ro is initialized to 10 kilo ohms
 
 static esp_adc_cal_characteristics_t *adc_chars;
