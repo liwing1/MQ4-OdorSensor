@@ -22,7 +22,7 @@
 #define NO_OF_SAMPLES   64          //Multisampling
 #define GPIO_BIT_MASK  ((1ULL<<GPIO_NUM_14))
 
-#define         MQ_PIN                       (GPIO_NUM_4)    //define which analog input channel you are going to use
+#define         MQ_PIN                       (GPIO_NUM_2)    //define which analog input channel you are going to use
 #define         RL_VALUE                     (5)     //define the load resistance on the board, in kilo ohms
 #define         RO_CLEAN_AIR_FACTOR          (9.83)  //RO_CLEAR_AIR_FACTOR=(Sensor resistance in clean air)/RO,
                                                      //which is derived from the chart in datasheet
@@ -79,7 +79,7 @@ float           TGS_HydrogenCurve[3] = {2.47,0.61,-0.29};    //point1: (lg300, l
 float           Ro           =  10;                 //Ro is initialized to 10 kilo ohms
 
 static esp_adc_cal_characteristics_t *adc_chars;
-static const adc_channel_t channel_mq4 = ADC_CHANNEL_5;
+static const adc_channel_t channel_mq4 = ADC_CHANNEL_2;
 static const adc_bits_width_t width = ADC_WIDTH_BIT_12;
 static const adc_atten_t atten = ADC_ATTEN_DB_11;
 static const adc_unit_t unit = ADC_UNIT_2;
