@@ -18,6 +18,12 @@
 #include "esp_log.h"
 #include "esp_spiffs.h"
 
+#include "ssd1306.h"
+#include "font8x8_basic.h"
+#include <string.h>
+
+#define tag "example"
+
 #define DEFAULT_VREF    1100        //Use adc2_vref_to_gpio() to obtain a better estimate
 #define NO_OF_SAMPLES   64          //Multisampling
 #define GPIO_BIT_MASK  ((1ULL<<GPIO_NUM_14))
@@ -34,7 +40,8 @@
 #define         READ_SAMPLE_INTERVAL         (50)    //define how many samples you are going to take in normal operation
 #define         READ_SAMPLE_TIMES            (5)     //define the time interal(in milisecond) between each samples in 
 
-const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+SSD1306_t dev;
+float methane;
  
 /*********************Application Related Macros*********************************/
 enum{
@@ -90,6 +97,8 @@ static const char *TAG = "example";
 void adc_init(void);
 void spiffs_init(void);
 void pins_init(void);
+void ssd_init(void);
+void ssd_task(void* p);
 uint32_t analogRead(const adc_channel_t);
 float MQCalibration(const adc_channel_t channel);
 float MQResistanceCalculation(uint32_t adc);
@@ -141,9 +150,9 @@ static void print_char_val_type(esp_adc_cal_value_t val_type)
 
 void app_main(void)
 {
-    double methane;
     char buffer[512];
 
+    ssd_init();
     pins_init();
     adc_init();
     spiffs_init();
@@ -153,6 +162,8 @@ void app_main(void)
     printf("Ro = %f\r\n", Ro);
 
     escreve_sensor_arquivo("MQ4(metano),MQ135(tolueno)");
+
+    xTaskCreate(ssd_task, "ssd_task", 2048 * 8, NULL, 5, NULL);
 
     //Continuously sample ADC1
     while (1) {
@@ -393,4 +404,39 @@ void pins_init(void)
         .pin_bit_mask   =   GPIO_BIT_MASK,
     };
     gpio_config(&io_config);
+}
+
+void ssd_init(void)
+{
+    i2c_master_init(&dev, CONFIG_SDA_GPIO, CONFIG_SCL_GPIO, CONFIG_RESET_GPIO);
+#if CONFIG_FLIP
+	dev._flip = true;
+	ESP_LOGW(tag, "Flip upside down");
+#endif
+	ESP_LOGI(tag, "Panel is 128x64");
+	ssd1306_init(&dev, 128, 64);
+
+    ssd1306_clear_screen(&dev, false);
+    ssd1306_contrast(&dev, 0xff);
+    ssd1306_display_text_x3(&dev, 0, "Hello", 5, false);
+    vTaskDelay(3000 / portTICK_PERIOD_MS);
+
+}
+
+void ssd_task(void* p)
+{
+    char lineChar[400];
+
+	// Scroll Down
+	ssd1306_clear_screen(&dev, false);
+	ssd1306_contrast(&dev, 0xff);
+	ssd1306_display_text(&dev, 0, "--METHANE PPM--", 15, true);
+	//ssd1306_software_scroll(&dev, 1, 7);
+	ssd1306_software_scroll(&dev, 1, (dev._pages - 1) );
+	for (int line=0;;line++) {
+		lineChar[0] = 0x02;
+		sprintf(&lineChar[1], "%d: %.6f", line, methane);
+		ssd1306_scroll_text(&dev, lineChar, strlen(lineChar), false);
+		vTaskDelay(500 / portTICK_PERIOD_MS);
+	}
 }
