@@ -22,7 +22,7 @@
 #define NO_OF_SAMPLES   64          //Multisampling
 #define GPIO_BIT_MASK  ((1ULL<<GPIO_NUM_14))
 
-#define         MQ_PIN                       (12)    //define which analog input channel you are going to use
+#define         MQ_PIN                       (GPIO_NUM_4)    //define which analog input channel you are going to use
 #define         RL_VALUE                     (5)     //define the load resistance on the board, in kilo ohms
 #define         RO_CLEAN_AIR_FACTOR          (9.83)  //RO_CLEAR_AIR_FACTOR=(Sensor resistance in clean air)/RO,
                                                      //which is derived from the chart in datasheet
@@ -73,8 +73,7 @@ float           TolueneCurve[3] ={1.0,-0.1343,-0.41};
 float           Ro           =  10;                 //Ro is initialized to 10 kilo ohms
 
 static esp_adc_cal_characteristics_t *adc_chars;
-static const adc_channel_t channel_mq4 = ADC_CHANNEL_5;     //GPIO13 if ADC1, GPIO12 if ADC2
-static const adc_channel_t channel_mq135 = ADC_CHANNEL_7;     //GPIO35 if ADC1, GPIO27 if ADC2
+static const adc_channel_t channel_mq4 = ADC_CHANNEL_5;
 static const adc_bits_width_t width = ADC_WIDTH_BIT_12;
 static const adc_atten_t atten = ADC_ATTEN_DB_11;
 static const adc_unit_t unit = ADC_UNIT_2;
@@ -136,7 +135,7 @@ static void print_char_val_type(esp_adc_cal_value_t val_type)
 
 void app_main(void)
 {
-    double toluene, methane;
+    double methane;
     char buffer[512];
 
     pins_init();
@@ -144,7 +143,6 @@ void app_main(void)
     spiffs_init();
 
     float Ro_mq4 = MQCalibration(channel_mq4);
-    float Ro_mq135 = MQCalibration(channel_mq135);
 
     printf("Ro = %f\r\n", Ro);
 
@@ -153,9 +151,8 @@ void app_main(void)
     //Continuously sample ADC1
     while (1) {
         methane = MQGetGasPercentage(MQRead(channel_mq4)/Ro_mq4,GAS_METHANE);
-        toluene = MQGetGasPercentage(MQRead(channel_mq135)/Ro_mq135,GAS_TOLUENE);
 
-        sprintf(buffer, "%f,%f\r\n", methane, toluene);
+        sprintf(buffer, "%f\r\n", methane);
         
         escreve_sensor_arquivo(buffer);
 
@@ -178,7 +175,6 @@ void adc_init(void)
     if (unit == ADC_UNIT_1) {
         adc1_config_width(width);
         adc1_config_channel_atten(channel_mq4, atten);
-        adc1_config_channel_atten(channel_mq135, atten);
     } else {
         adc2_config_channel_atten((adc2_channel_t)channel_mq4, atten);
     }
@@ -237,7 +233,7 @@ float MQCalibration(const adc_channel_t channel)
  
   for (i=0;i<CALIBARAION_SAMPLE_TIMES;i++) {            //take multiple samples
     val += MQResistanceCalculation(analogRead(channel));
-    vTaskDelay(CALIBRATION_SAMPLE_INTERVAL/portTICK_RATE_MS);
+    vTaskDelay(CALIBRATION_SAMPLE_INTERVAL/portTICK_PERIOD_MS);
   }
   val = val/CALIBARAION_SAMPLE_TIMES;                   //calculate the average value
  
