@@ -18,6 +18,7 @@
 #include "esp_log.h"
 #include "esp_spiffs.h"
 
+#include "gas_sensor.h"
 #include "ssd1306.h"
 #include "font8x8_basic.h"
 #include <string.h>
@@ -28,17 +29,12 @@
 #define NO_OF_SAMPLES   64          //Multisampling
 #define GPIO_BIT_MASK  ((1ULL<<GPIO_NUM_14))
 
-#define         MQ_PIN                       (GPIO_NUM_2)    //define which analog input channel you are going to use
+#define         GS__PIN                       (GPIO_NUM_2)    //define which analog input channel you are going to use
 #define         RL_VALUE                     (5)     //define the load resistance on the board, in kilo ohms
 #define         RO_CLEAN_AIR_FACTOR          (9.83)  //RO_CLEAR_AIR_FACTOR=(Sensor resistance in clean air)/RO,
                                                      //which is derived from the chart in datasheet
  
-/**********************Software Related Macros***********************************/
-#define         CALIBARAION_SAMPLE_TIMES     (50)    //define how many samples you are going to take in the calibration phase
-#define         CALIBRATION_SAMPLE_INTERVAL  (500)   //define the time interal(in milisecond) between each samples in the
-                                                     //cablibration phase
-#define         READ_SAMPLE_INTERVAL         (50)    //define how many samples you are going to take in normal operation
-#define         READ_SAMPLE_TIMES            (5)     //define the time interal(in milisecond) between each samples in 
+
 
 SSD1306_t dev;
 float methane;
@@ -100,11 +96,6 @@ void pins_init(void);
 void ssd_init(void);
 void ssd_task(void* p);
 uint32_t analogRead(const adc_channel_t);
-float MQCalibration(const adc_channel_t channel);
-float MQResistanceCalculation(uint32_t adc);
-float MQRead(const adc_channel_t);
-double MQGetGasPercentage(float rs_ro_ratio, int gas_id);
-double MQGetPercentage(float rs_ro_ratio, float *pcurve);
 void escreve_sensor_arquivo(char*);
 void print_sensor_arquivo(void);
 
@@ -157,17 +148,17 @@ void app_main(void)
     adc_init();
     spiffs_init();
 
-    float Ro_mq4 = MQCalibration(channel_mq4);
+    float Ro_mq4 = GS_Calibration(channel_mq4);
 
     printf("Ro = %f\r\n", Ro);
 
-    escreve_sensor_arquivo("MQ4(metano),MQ135(tolueno)");
+    escreve_sensor_arquivo("GS_4(metano),GS_135(tolueno)");
 
     xTaskCreate(ssd_task, "ssd_task", 2048 * 8, NULL, 5, NULL);
 
     //Continuously sample ADC1
     while (1) {
-        methane = MQGetGasPercentage(MQRead(channel_mq4)/Ro_mq4,GAS_METHANE);
+        methane = GS_GetGasPercentage(GS_Read(channel_mq4)/Ro_mq4,GAS_METHANE);
 
         sprintf(buffer, "%f\r\n", methane);
         
@@ -219,110 +210,6 @@ uint32_t analogRead(const adc_channel_t channel)
     adc_reading /= NO_OF_SAMPLES;
     //Convert adc_reading to voltage in mV
     return (2 * esp_adc_cal_raw_to_voltage(adc_reading, adc_chars));
-}
-
-
-/**************** MQResistanceCalculation **************************************
-Input:   raw_adc - raw value read from adc, which represents the voltage
-Output:  the calculated sensor resistance
-Remarks: The sensor and the load resistor forms a voltage divider. Given the voltage
-         across the load resistor and its resistance, the resistance of the sensor
-         could be derived.
-**********************************************************************************/ 
-float MQResistanceCalculation(uint32_t adc)
-{
-  return ( ((float)RL_VALUE*((5000/adc) - 1)) );
-}
-
-
-/*************************** MQCalibration **************************************
-Input:   mq_pin - analog channel
-Output:  Ro of the sensor
-Remarks: This function assumes that the sensor is in clean air. It use  
-         MQResistanceCalculation to calculates the sensor resistance in clean air 
-         and then divides it with RO_CLEAN_AIR_FACTOR. RO_CLEAN_AIR_FACTOR is about 
-         10, which differs slightly between different sensors.
-**********************************************************************************/ 
-float MQCalibration(const adc_channel_t channel)
-{
-  int i;
-  float val=0;
- 
-  for (i=0;i<CALIBARAION_SAMPLE_TIMES;i++) {            //take multiple samples
-    val += MQResistanceCalculation(analogRead(channel));
-    vTaskDelay(CALIBRATION_SAMPLE_INTERVAL/portTICK_PERIOD_MS);
-  }
-  val = val/CALIBARAION_SAMPLE_TIMES;                   //calculate the average value
- 
-  val = val/RO_CLEAN_AIR_FACTOR;                        //divided by RO_CLEAN_AIR_FACTOR yields the Ro 
-                                                        //according to the chart in the datasheet 
- 
-  return val; 
-}
-
-
-/***************************  MQRead *******************************************
-Input:   mq_pin - analog channel
-Output:  Rs of the sensor
-Remarks: This function use MQResistanceCalculation to caculate the sensor resistenc (Rs).
-         The Rs changes as the sensor is in the different consentration of the target
-         gas. The sample times and the time interval between samples could be configured
-         by changing the definition of the macros.
-**********************************************************************************/ 
-float MQRead(const adc_channel_t channel)
-{
-  int i;
-  float rs=0;
- 
-  for (i=0;i<READ_SAMPLE_TIMES;i++) {
-    rs += MQResistanceCalculation(analogRead(channel));
-    vTaskDelay(READ_SAMPLE_INTERVAL/portTICK_PERIOD_MS);
-  }
- 
-  rs = rs/READ_SAMPLE_TIMES;
- 
-  return rs;  
-}
- 
-
-/***************************  MQGetGasPercentage ********************************
-Input:   rs_ro_ratio - Rs divided by Ro
-         gas_id      - target gas type
-Output:  ppm of the target gas
-Remarks: This function passes different curves to the MQGetPercentage function which 
-         calculates the ppm (parts per million) of the target gas.
-**********************************************************************************/ 
-double MQGetGasPercentage(float rs_ro_ratio, int gas_id)
-{
-  if ( gas_id == GAS_LPG ) {
-     return MQGetPercentage(rs_ro_ratio,LPGCurve);
-  } else if ( gas_id == GAS_CO ) {
-     return MQGetPercentage(rs_ro_ratio,COCurve);
-  } else if ( gas_id == GAS_SMOKE ) {
-     return MQGetPercentage(rs_ro_ratio,SmokeCurve);
-  }else if( gas_id == GAS_ALCOHOL ) {
-     return MQGetPercentage(rs_ro_ratio,AlcoholCurve);
-  }else if( gas_id == GAS_METHANE ) {
-     return MQGetPercentage(rs_ro_ratio,MethaneCurve);
-  }else if( gas_id == GAS_TOLUENE ) {
-     return MQGetPercentage(rs_ro_ratio,TolueneCurve);
-  }
-  return 0;
-}
- 
-
-/***************************  MQGetPercentage ********************************
-Input:   rs_ro_ratio - Rs divided by Ro
-         pcurve      - pointer to the curve of the target gas
-Output:  ppm of the target gas
-Remarks: By using the slope and a point of the line. The x(logarithmic value of ppm) 
-         of the line could be derived if y(rs_ro_ratio) is provided. As it is a 
-         logarithmic coordinate, power of 10 is used to convert the result to non-logarithmic 
-         value.
-**********************************************************************************/ 
-double MQGetPercentage(float rs_ro_ratio, float *pcurve)
-{
-  return (pow(10,( ((log(rs_ro_ratio)-pcurve[1])/pcurve[2]) + pcurve[0])));
 }
 
 
