@@ -16,9 +16,9 @@ double GS_calculateSlope(void)
 }
 
 
-double GS_calculteRo(const adc_channel_t channel)
+double GS_calculteRo(void)
 {
-    return GS_GetRs(sensor.pin)/RO_CLEAN_AIR_FACTOR;
+    return GS_getRs(sensor.pin)/sensor.r0_clean_air;
 }
 
 
@@ -26,7 +26,7 @@ void GS_Init(gas_sensor_t *gas_sensor_properties)
 {
     sensor = *gas_sensor_properties;
     sensor.curve.slope = GS_calculateSlope();
-    sensor.ro_calibrated = GS_calculteRo();
+    sensor.r0_calibrated = GS_calculteRo();
 }
 
 
@@ -55,7 +55,7 @@ Remarks: By using the slope and a point of the line. The x(logarithmic value of 
 **********************************************************************************/ 
 double GS_getPercentage(double voltage)
 {
-    double rs_ro_ratio = GS_GetRs(channel_mq4)/Ro_mq4;
+    double rs_ro_ratio = GS_getRs(voltage)/sensor.r0_calibrated;
 
-    return (pow(10,( ((log(rs_ro_ratio)-pcurve[1])/pcurve[2]) + pcurve[0])));
+    return (pow(10,( ((log(rs_ro_ratio)-sensor.curve.first_data[_Y])/sensor.curve.slope) + sensor.curve.first_data[_X])));
 }
