@@ -34,7 +34,7 @@ SSD1306_t dev;
 /*-- GAS General --*/
 void gas_task(void* p);
 gas_sensor_t mq4_gas_sensor = {
-    .pin = 12,
+    .name = "MQ4-METHANE",
     .r_load = 5000,
     .v_heater = 5,
     .rsr0_clean = 4.4,
@@ -42,6 +42,26 @@ gas_sensor_t mq4_gas_sensor = {
     .curve.data_1 = {200, 1.8},
     .curve.data_2 = {10000, 0.45},
 };
+
+gas_sensor_t tgs2611 = {
+    .name = "TGS-METHANE",
+    .r_load = 6000,
+    .v_heater = 5,
+    .rsr0_clean = 8.9,
+
+    .curve.data_1 = {300, 3.2},
+    .curve.data_2 = {10000, 0.7},
+};
+
+// gas_sensor_t tgs8100 = {
+//     .name = "MQ4-METHANE",
+//     .r_load = 5000,
+//     .v_heater = 5,
+//     .rsr0_clean = 4.4,
+
+//     .curve.data_1 = {200, 1.8},
+//     .curve.data_2 = {10000, 0.45},
+// };
 
 void app_main(void)
 {

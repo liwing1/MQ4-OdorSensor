@@ -3,11 +3,12 @@
 
 #include <stdint.h>
 
+#define SIZE_NAME 32
 #define _X 0
 #define _Y 1
 
 typedef struct{
-    uint32_t pin;
+    char name[SIZE_NAME];
     uint32_t r_load;
     uint32_t v_heater;
     double rsr0_clean;
@@ -17,6 +18,7 @@ typedef struct{
         double data_1[2];
         double data_2[2];
         double slope;
+        double b;
     } curve;
 } gas_sensor_t;
 
