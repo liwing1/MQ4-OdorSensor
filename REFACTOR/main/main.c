@@ -9,6 +9,8 @@
 
 #include "adc.h"
 
+#include "gas_sensor.h"
+
 #include "ssd1306.h"
 #include "font8x8_basic.h"
 #include <string.h>
@@ -16,7 +18,8 @@
 #define SAMPLE_TIMES    20
 
 const static char *TAG = "MAIN";
-static QueueHandle_t queue_buff;
+static QueueHandle_t voltage_queue;
+static QueueHandle_t ppm_queue;
 
 /*-- ADC General --*/
 void adc_task(void*p);
@@ -28,16 +31,29 @@ void ssd_init(void);
 void ssd_task(void* p);
 SSD1306_t dev;
 
+/*-- GAS General --*/
+void gas_task(void* p);
+gas_sensor_t mq4_gas_sensor = {
+    .pin = 12,
+    .r_load = 5000,
+    .v_heater = 5,
+    .rsr0_clean = 4.4,
+
+    .curve.data_1 = {200, 1.8},
+    .curve.data_2 = {10000, 0.45},
+};
 
 void app_main(void)
 {
     adc_init();
     ssd_init();
 
-    queue_buff = xQueueCreate(5, sizeof(int));
+    voltage_queue = xQueueCreate(5, sizeof(int));
+    ppm_queue = xQueueCreate(5, sizeof(double));
 
-    xTaskCreate(ssd_task, "ssd_task", 2048 * 8, NULL, 5, NULL);
     xTaskCreate(adc_task, "adc_task", 2048 * 8, NULL, 10, NULL);
+    xTaskCreate(gas_task, "gas_task", 2048 * 8, NULL, 8, NULL);
+    xTaskCreate(ssd_task, "ssd_task", 2048 * 8, NULL, 5, NULL);
 
 }
 
@@ -53,7 +69,7 @@ void adc_task(void* p)
         }
         sensor_voltage /= SAMPLE_TIMES;
 
-        xQueueSend(queue_buff, (void*)&sensor_voltage, 10);
+        xQueueSend(voltage_queue, (void*)&sensor_voltage, 10);
 
         ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", 
             ADC_UNIT_1 + 1, EXAMPLE_ADC1_CHAN0, sensor_voltage
@@ -84,7 +100,7 @@ void ssd_init(void)
 void ssd_task(void* p)
 {
     char lineChar[400];
-    int print_data = 0;
+    double print_data = 0;
 
 	// Scroll Down
 	ssd1306_clear_screen(&dev, false);
@@ -92,12 +108,30 @@ void ssd_task(void* p)
 	ssd1306_display_text(&dev, 0, "--METHANE PPM--", 15, true);
 	ssd1306_software_scroll(&dev, 1, (dev._pages - 1) );
 	for (int line=0;;line++) {
-        if(xQueueReceive(queue_buff, (void*)&print_data, portMAX_DELAY)){
+        if(xQueueReceive(ppm_queue, (void*)&print_data, portMAX_DELAY)){
             if(line > 9) line = 0;
             lineChar[0] = 0x02;
-            sprintf(&lineChar[1], "%d: %d", line, print_data);
+            sprintf(&lineChar[1], "%d: %lf", line, print_data);
             ssd1306_scroll_text(&dev, lineChar, strlen(lineChar), false);
             vTaskDelay(500 / portTICK_PERIOD_MS);
         }
 	}
+}
+
+void gas_task(void* p)
+{
+    int voltage = 0;
+    double ppm = 0;
+    if(xQueueReceive(voltage_queue, (void*)&voltage, portMAX_DELAY)){
+        GS_Init(&mq4_gas_sensor, (double)voltage/1000);
+    }
+
+    while(1){
+        if(xQueueReceive(voltage_queue, (void*)&voltage, portMAX_DELAY)){
+            ppm = GS_voltToPPM(&mq4_gas_sensor, (double)voltage/1000);
+
+            xQueueSend(ppm_queue, (void*)&ppm, 100);
+            ESP_LOGI(TAG, "METHANE: %lf", ppm);
+        }
+    }
 }

@@ -1,61 +1,33 @@
 #include "gas_sensor.h"
 #include "math.h"
+#include "esp_log.h"
 
-#define _X 0
-#define _Y 1
+const static char *TAG = "GAS";
 
-
-static gas_sensor_t sensor;
-
-
-double GS_calculateSlope(void)
+static double GS_calculateSlope(double* data_1, double* data_2)
 {
-    double delta_y = log(sensor.curve.last_data[_Y]/sensor.curve.first_data[_Y]);
-    double delta_x = log(sensor.curve.last_data[_X]/sensor.curve.first_data[_X]);
-    return (delta_y)/(delta_x);
+    return log10(data_1[_Y]/data_2[_Y])/log10(data_1[_X]/data_2[_X]);
 }
 
-
-double GS_calculteRo(void)
+static double GS_calculateRS(double v_heater, double v_output, double r_load)
 {
-    return GS_getRs(sensor.pin)/sensor.r0_clean_air;
+    return (double)((v_heater/v_output - 1)*r_load);
 }
 
-
-void GS_Init(gas_sensor_t *gas_sensor_properties)
+static double GS_calculateR0(double v_heater, double v_output, double r_load, double rsr0_clean)
 {
-    sensor = *gas_sensor_properties;
-    sensor.curve.slope = GS_calculateSlope();
-    sensor.r0_calibrated = GS_calculteRo();
+    return GS_calculateRS(v_heater, v_output, r_load)/rsr0_clean;
 }
 
-
-/***************************  GS_GetRs *******************************************
-Input:   mq_pin - analog channel
-Output:  Rs of the sensor
-Remarks: This function use GS_ResistanceCalculation to caculate the sensor resistenc (Rs).
-         The Rs changes as the sensor is in the different consentration of the target
-         gas. The sample times and the time interval between samples could be configured
-         by changing the definition of the macros.
-**********************************************************************************/ 
-double GS_getRs(double output_voltage)
+void GS_Init(gas_sensor_t *sensor, double v_calibration)
 {
-    return ((sensor.rl_value*((sensor.heater_voltage/output_voltage) - 1)));
+    sensor->curve.slope = GS_calculateSlope(sensor->curve.data_1, sensor->curve.data_2);
+    sensor->r0_calibrated = GS_calculateR0(sensor->v_heater, v_calibration, sensor->r_load, sensor->rsr0_clean);
 }
 
-
-/***************************  GS_GetPercentage ********************************
-Input:   rs_ro_ratio - Rs divided by Ro
-         pcurve      - pointer to the curve of the target gas
-Output:  ppm of the target gas
-Remarks: By using the slope and a point of the line. The x(logarithmic value of ppm) 
-         of the line could be derived if y(rs_ro_ratio) is provided. As it is a 
-         logarithmic coordinate, power of 10 is used to convert the result to non-logarithmic 
-         value.
-**********************************************************************************/ 
-double GS_getPercentage(double voltage)
+double GS_voltToPPM(gas_sensor_t *sensor, double voltage)
 {
-    double rs_ro_ratio = GS_getRs(voltage)/sensor.r0_calibrated;
-
-    return (pow(10,( ((log(rs_ro_ratio)-sensor.curve.first_data[_Y])/sensor.curve.slope) + sensor.curve.first_data[_X])));
+    double rsr0 = GS_calculateRS(sensor->v_heater, voltage, sensor->r_load)/sensor->r0_calibrated;
+    ESP_LOGW(TAG, "RSR0: %lf", rsr0);
+    return pow(10, ((log10(rsr0) - sensor->curve.data_1[_Y]) / sensor->curve.slope));
 }
