@@ -36,7 +36,7 @@ void gas_task(void* p);
 gas_sensor_t mq4_gas_sensor = {
     .name = "MQ4-METHANE",
     .r_load = 2000,
-    .v_heater = 5,
+    .v_circuit = 5,
     .rsr0_clean = 4.4,
 
     .curve.data_1 = {200, 1.8},
@@ -46,7 +46,7 @@ gas_sensor_t mq4_gas_sensor = {
 gas_sensor_t tgs2611 = {
     .name = "TGS-METHANE",
     .r_load = 6000,
-    .v_heater = 5,
+    .v_circuit = 5,
     .rsr0_clean = 8.9,
 
     .curve.data_1 = {300, 3.2},
@@ -56,7 +56,7 @@ gas_sensor_t tgs2611 = {
 // gas_sensor_t tgs8100 = {
 //     .name = "MQ4-METHANE",
 //     .r_load = 5000,
-//     .v_heater = 5,
+//     .v_circuit = 5,
 //     .rsr0_clean = 4.4,
 
 //     .curve.data_1 = {200, 1.8},
@@ -151,7 +151,7 @@ void gas_task(void* p)
             ppm = GS_voltToPPM(&mq4_gas_sensor, (double)voltage/1000);
 
             xQueueSend(ppm_queue, (void*)&ppm, 100);
-            ESP_LOGI(TAG, "METHANE: %lf", ppm);
+            ESP_LOGI(TAG, "METHANE: %lfppm", ppm);
         }
     }
 }

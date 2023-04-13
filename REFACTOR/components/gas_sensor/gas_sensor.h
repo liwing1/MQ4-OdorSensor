@@ -10,7 +10,7 @@
 typedef struct{
     char name[SIZE_NAME];
     uint32_t r_load;
-    uint32_t v_heater;
+    uint32_t v_circuit;
     double rsr0_clean;
     double r0_calibrated;
     
