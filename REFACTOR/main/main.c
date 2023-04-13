@@ -31,25 +31,25 @@ static int voltage[IDX_SENSOR_MAX];
 void gas_task(void* p);
 gas_sensor_t gas_sensor[IDX_SENSOR_MAX] = {
     [IDX_SENSOR_TGS2611] = {
-        .name = "TGS2611-H2",
+        .name = "TGS2611-ETH",
         .analog_pin = ADC1_TGS_CHANNEL,
         .r_load = 6000,
         .v_circuit = 5,
         .rsr0_clean = 8.9,
 
-        .curve.data_1 = {300, 5.1},
-        .curve.data_2 = {10000, 1.7},
+        .curve.data_1 = {300, 6.1},
+        .curve.data_2 = {10000, 1.5},
     },
 
     [IDX_SENSOR_MQ4] = {
-        .name = "MQ4-H2",
+        .name = "MQ4-ETH",
         .analog_pin = ADC1_MQ4_CHANNEL,
         .r_load = 975,
         .v_circuit = 5,
         .rsr0_clean = 4.4,
 
-        .curve.data_1 = {200, 3.6},
-        .curve.data_2 = {10000, 1.9},
+        .curve.data_1 = {200, 4},
+        .curve.data_2 = {10000, 3},
     },
 };
 
