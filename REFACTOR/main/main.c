@@ -35,7 +35,7 @@ SSD1306_t dev;
 void gas_task(void* p);
 gas_sensor_t mq4_gas_sensor = {
     .name = "MQ4-METHANE",
-    .r_load = 5000,
+    .r_load = 2000,
     .v_heater = 5,
     .rsr0_clean = 4.4,
 
