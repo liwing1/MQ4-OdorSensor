@@ -9,6 +9,7 @@
 
 typedef struct{
     char name[SIZE_NAME];
+    uint8_t analog_pin;
     uint32_t r_load;
     uint32_t v_circuit;
     double rsr0_clean;

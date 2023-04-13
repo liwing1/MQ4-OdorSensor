@@ -42,6 +42,5 @@ double GS_voltToPPM(gas_sensor_t *sensor, double voltage)
     double rs = GS_calculateRS(sensor->v_circuit, voltage, sensor->r_load);
     double r0 = sensor->r0_calibrated;
     double rsr0 = rs/r0;
-    ESP_LOGW(TAG, "RS: %lf\tR0: %lf\tRSR0:%lf", rs, r0, rsr0);
     return pow(rsr0/pow(10, sensor->curve.b), 1/sensor->curve.slope);
 }
