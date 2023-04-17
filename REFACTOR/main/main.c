@@ -14,9 +14,10 @@
 #define SAMPLE_TIMES    20
 
 enum IDX_SENSORS{
-    IDX_SENSOR_TGS2611 = 0,
-    IDX_SENSOR_MQ4,
-    IDX_SENSOR_MAX
+    // IDX_SENSOR_TGS2611 = 0,
+    // IDX_SENSOR_MQ4,
+    IDX_SENSOR_TGS8100,
+    IDX_SENSOR_MAX,
 };
 
 const static char *TAG = "MAIN";
@@ -30,27 +31,38 @@ static int voltage[IDX_SENSOR_MAX];
 /*-- GAS General --*/
 void gas_task(void* p);
 gas_sensor_t gas_sensor[IDX_SENSOR_MAX] = {
-    [IDX_SENSOR_TGS2611] = {
-        .name = "TGS2611-ETH",
+    // [IDX_SENSOR_TGS2611] = {
+    //     .name = "TGS2611-ETH",
+    //     .analog_pin = ADC1_TGS_CHANNEL,
+    //     .r_load = 6000,
+    //     .v_circuit = 5,
+    //     .rsr0_clean = 8.9,
+
+    //     .curve.data_1 = {300, 6.1},
+    //     .curve.data_2 = {10000, 1.5},
+    // },
+
+    // [IDX_SENSOR_MQ4] = {
+    //     .name = "MQ4-ETH",
+    //     .analog_pin = ADC1_MQ4_CHANNEL,
+    //     .r_load = 975,
+    //     .v_circuit = 5,
+    //     .rsr0_clean = 4.4,
+
+    //     .curve.data_1 = {200, 4},
+    //     .curve.data_2 = {10000, 3},
+    // },
+
+    {
+        .name = "TGS8100-H2",
         .analog_pin = ADC1_TGS_CHANNEL,
-        .r_load = 6000,
-        .v_circuit = 5,
-        .rsr0_clean = 8.9,
+        .r_load = 10000,
+        .v_circuit = 3.228,
+        .rsr0_clean = 1,
 
-        .curve.data_1 = {300, 6.1},
-        .curve.data_2 = {10000, 1.5},
-    },
-
-    [IDX_SENSOR_MQ4] = {
-        .name = "MQ4-ETH",
-        .analog_pin = ADC1_MQ4_CHANNEL,
-        .r_load = 975,
-        .v_circuit = 5,
-        .rsr0_clean = 4.4,
-
-        .curve.data_1 = {200, 4},
-        .curve.data_2 = {10000, 3},
-    },
+        .curve.data_1 = {1, 0.68},
+        .curve.data_2 = {100, 0.1},
+    }
 };
 
 
@@ -96,6 +108,7 @@ void gas_task(void* p)
 {
     int v_out[IDX_SENSOR_MAX];
     double ppm[IDX_SENSOR_MAX];
+
     if(xQueueReceive(voltage_queue, (void*)&v_out, portMAX_DELAY)){
         for(uint8_t idx_sens = 0; idx_sens < IDX_SENSOR_MAX; idx_sens++){
             GS_Init(&gas_sensor[idx_sens], (double)v_out[idx_sens]/1000);            
@@ -106,10 +119,9 @@ void gas_task(void* p)
         if(xQueueReceive(voltage_queue, (void*)&v_out, portMAX_DELAY)){
             for(uint8_t idx_sens = 0; idx_sens < IDX_SENSOR_MAX; idx_sens++){
                 ppm[idx_sens] = GS_voltToPPM(&gas_sensor[idx_sens], (double)v_out[idx_sens]/1000);    
-            }
 
-            // xQueueSend(ppm_queue, (void*)&ppm, 100);
-            ESP_LOGW(TAG, "ETHANOL: TGS=%lfppm\tMQ4=%lfppm", ppm[IDX_SENSOR_TGS2611], ppm[IDX_SENSOR_MQ4]);
+                ESP_LOGW(TAG, "%s = %lfppm", gas_sensor[idx_sens].name, ppm[idx_sens]);
+            }
         }
     }
 }

@@ -15,7 +15,7 @@ static double GS_calculateSlope(double* data_1, double* data_2)
 
 static double GS_calculateB(double* data, double slope)
 {
-    return log10(data[_Y]/pow(data[_X], slope));
+    return log10(data[_Y]) - slope*log10(data[_X]);
 }
 
 static double GS_calculateRS(double v_circuit, double v_output, double r_load)
@@ -42,5 +42,6 @@ double GS_voltToPPM(gas_sensor_t *sensor, double voltage)
     double rs = GS_calculateRS(sensor->v_circuit, voltage, sensor->r_load);
     double r0 = sensor->r0_calibrated;
     double rsr0 = rs/r0;
-    return pow(rsr0/pow(10, sensor->curve.b), 1/sensor->curve.slope);
+    ESP_LOGW(TAG, "RS: %lf\t RS/R0: %lf", rs, rsr0);
+    return pow(10, (log10(rsr0) - sensor->curve.b)/sensor->curve.slope);
 }
