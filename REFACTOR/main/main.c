@@ -12,25 +12,15 @@
 #include "gas_sensor.h"
 
 #define SAMPLE_TIMES    20
-
-enum IDX_SENSORS{
-    // IDX_SENSOR_TGS2611 = 0,
-    // IDX_SENSOR_MQ4,
-    IDX_SENSOR_TGS8100,
-    IDX_SENSOR_MAX,
-};
+#define SIZE_OF_ARRAY(a)    (size_t)(sizeof(a)/sizeof(a[0]))
 
 const static char *TAG = "MAIN";
 static QueueHandle_t voltage_queue;
 
-/*-- ADC General --*/
-void adc_task(void*p);
-static int adc_raw[IDX_SENSOR_MAX];
-static int voltage[IDX_SENSOR_MAX];
 
 /*-- GAS General --*/
 void gas_task(void* p);
-gas_sensor_t gas_sensor[IDX_SENSOR_MAX] = {
+static gas_sensor_t gas_sensor[] = {
     // [IDX_SENSOR_TGS2611] = {
     //     .name = "TGS2611-ETH",
     //     .analog_pin = ADC1_TGS_CHANNEL,
@@ -64,6 +54,10 @@ gas_sensor_t gas_sensor[IDX_SENSOR_MAX] = {
         .curve.data_2 = {100, 0.1},
     }
 };
+#define IDX_SENSOR_MAX SIZE_OF_ARRAY(gas_sensor)
+
+/*-- ADC General --*/
+void adc_task(void*p);
 
 
 void app_main(void)
@@ -79,6 +73,8 @@ void app_main(void)
 
 void adc_task(void* p)
 {
+    static int adc_raw[IDX_SENSOR_MAX];
+    static int voltage[IDX_SENSOR_MAX];
     while (1) {
         int sensor_voltage[IDX_SENSOR_MAX] = {0};
         for(uint8_t i = 0; i < SAMPLE_TIMES; i++){
